@@ -3,14 +3,37 @@
 schemaVersion: "3"
 displayName: OpenCode Workload
 description: |
-  Debian-based workload that runs OpenCode as a headless agent, with uv (Python)
-  and just installed. Network access is deny-by-default; only OpenCode, GitHub,
+  OpenCode coding agent on Docker's shell-docker template (Ubuntu, glibc).
+  OpenCode is pinned via npm, uv is pinned and copied from astral-sh, and
+  just is included. Network access is deny-by-default; only OpenCode, GitHub,
   and PyPI endpoints are allowed.
 author: atorizva
 licenses: [Apache-2.0]
 kind: workload
 version: "1.0.0"
-provides: ["opencode-workload@1.0.0"]
+provides:
+  - opencode-workload@1.0.0
+  - opencode@${{ kit.args.opencode_version }}
+  - uv@${{ kit.args.uv_version }}
+  - just@${{ kit.args.just_version }}
+
+args:
+  opencode_version:
+    default: "2.0.32"
+    pattern: '^[0-9]+\.[0-9]+\.[0-9]+$'
+    buildArg: OPENCODE_VERSION
+  uv_version:
+    default: "0.13.9"
+    pattern: '^[0-9]+\.[0-9]+\.[0-9]+$'
+    buildArg: UV_VERSION
+  shell_docker_version:
+    default: "0.7.0"
+    pattern: '^[0-9]+\.[0-9]+\.[0-9]+$'
+    buildArg: SHELL_DOCKER_VERSION
+  just_version:
+    default: "1.59.0"
+    pattern: '^[0-9]+\.[0-9]+\.[0-9]+$'
+    buildArg: JUST_VERSION
 
 capabilities:
   - type: com.docker.sandbox/sbx@1
@@ -20,6 +43,7 @@ capabilities:
       runtime:
         allow:
           - opencode.ai
+          - models.opencode.ai
           - models.dev
           - pypi.org
           - files.pythonhosted.org

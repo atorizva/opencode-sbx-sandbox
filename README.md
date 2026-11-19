@@ -2,9 +2,9 @@
 
 A Docker image for **agent flows in a sandbox**, built with
 [Docker Sandboxes](https://docs.docker.com/sandboxes/) (`sbx`). It runs
-**OpenCode** (headless agent) on a **Debian** base, with **uv** (Python) and
-**just** installed, and two optional mixins for **SSH commit signing** and
-**SSH-GitHub authentication**. Images are published to **GitHub Container
+**OpenCode** (headless agent) on Docker's **shell-docker** template (Ubuntu),
+with **uv** (Python) and **just** installed, composed with Docker's published
+**SSH-GitHub authentication** mixin. Images are published to **GitHub Container
 Registry (ghcr.io)** on every new tag.
 
 The goal: an agent environment that can *run freely without supervision*,
@@ -14,27 +14,25 @@ encapsulated in a safe space by explicit network and filesystem policy.
 
 ## Architecture
 
-Docker Sandboxes v3 kits are composed from three kinds. This repo ships one of
-each, published as a single runnable `kind: set`:
+Docker Sandboxes v3 kits are composed from three kinds. This repo ships a
+`workload` and a `set`; the SSH mixin is Docker's published kit:
 
 | Kit | Kind | Role |
 |-----|------|------|
-| `workload/opencode-workload` | workload | Root filesystem: Debian + OpenCode + uv + just + gh, non-root `agent` (uid 1000), `ENTRYPOINT ["opencode"]`. |
-| `mixins/git-ssh-sign` | mixin | SSH **commit/tag** signing via the host's forwarded SSH agent (no keys in the sandbox). |
-| `mixins/github-ssh` | mixin | SSH **authentication** to `github.com` (git push/pull over SSH). |
-| `set/agent-sandbox` | set | Composes the three above into one runnable artifact. |
+| `workload/opencode-workload` | workload | Root filesystem: shell-docker (Ubuntu) + OpenCode (npm) + uv + just, non-root `agent` (uid 1000), `ENTRYPOINT ["opencode"]`. |
+| `docker/sbx-kit-github-ssh` | mixin | SSH **authentication** to `github.com` (Docker's kit, public). |
+| `set/agent-sandbox` | set | Composes the workload + the mixin into one runnable artifact. |
 
 ```
-workload (Debian + OpenCode + uv + just + gh)
-   + git-ssh-sign (sign: git)        + github-ssh (authenticate: git@github.com)
-   ----------------------------------------------------------------------------
+workload (shell-docker + OpenCode + uv + just)
+   + github-ssh (authenticate: git@github.com)
+   ------------------------------------------------
    = agent-sandbox (set)
 ```
 
-The "base image" is just the workload Dockerfile's `FROM` line (Debian
-`trixie-slim`, pinned by digest). We build it from scratch rather than
-extending `docker/sandbox-templates:opencode` so the exact Debian / uv / just
-versions are under our control.
+The base image is Docker's `shell-docker` template (Ubuntu, glibc). OpenCode is
+installed via npm (pinned), uv is copied from the astral-sh image (pinned), and
+just is added as a pinned release binary.
 
 ---
 
@@ -67,16 +65,14 @@ Trade-offs to be aware of:
 
 ## Tooling inside the image
 
-- **OpenCode** `v1.19.6` — the agent. Runs as the workload entrypoint; the
-  headless mode is `opencode run <message>`.
-- **uv** `0.13.9` — the Python tool. Installed via the official installer;
-  **uv manages Python per project** via `.python-version`, so no system Python
-  is baked in.
+- **OpenCode** `2.0.32` — the agent, installed via npm (`@opencode/cli`) and
+  pinned to an exact version. Runs as the workload entrypoint.
+- **uv** `0.13.9` — the Python tool, copied from `ghcr.io/astral-sh/uv` and
+  pinned; **uv manages Python per project** via `.python-version`.
 - **just** `1.59.0` — installed both in the image (for the agent to use later)
   and on the host (the `Justfile` here simplifies building/publishing).
-- **gh** (GitHub CLI) — for authenticated GitHub API access (also used by the
-  signing mixin to cross-check keys).
-- **git**, **openssh-client**, **jq**, **curl**, **bash**, CA certs.
+- **gh**, **git**, **jq**, **curl**, **bash**, **node/npm** — provided by the
+  shell-docker template.
 
 ---
 
@@ -84,10 +80,10 @@ Trade-offs to be aware of:
 
 ### Network policy (deny-by-default)
 
-Each kit declares `network-policy@2` allow/deny lists. Only the following
+The workload declares a `network-policy@2` allow/deny list. Only the following
 endpoints are reachable inside the sandbox:
 
-- **OpenCode**: `opencode.ai`, `models.dev`
+- **OpenCode**: `opencode.ai`, `models.opencode.ai`, `models.dev`
 - **GitHub**: `api.github.com` (GET/HEAD/POST/PATCH; PUT/DELETE denied),
   `github.com` (HTTP :443 + SSH :22), `objects.githubusercontent.com`,
   `release-assets.githubusercontent.com`, `codeload.github.com`
@@ -99,14 +95,14 @@ real value is injected into matching outbound requests by the sandbox proxy.
 
 ### SSH (no keys in the sandbox)
 
-SSH operations use the **host's forwarded SSH agent** via `ssh-agent@1`:
+SSH operations use the **host's forwarded SSH agent** via `ssh-agent@1`
+(provided by Docker's published `github-ssh` mixin) for
+`authenticate: [git@github.com]` — git push/pull over SSH.
 
-- `git-ssh-sign` forwards signing (`sign: [git]`) for commit/tag signatures.
-- `github-ssh` forwards authentication (`authenticate: [git@github.com]`) for
-  git push/pull over SSH.
+Private keys stay on the host; the agent never holds the key material itself.
 
-Private keys stay on the host. The agent asks the host agent to sign; it never
-holds the key material itself.
+> SSH **commit signing** is not enabled yet. It can be added later by composing
+> a signing mixin (`sign: [git]`).
 
 ### Clone mode and the PR flow
 
@@ -135,23 +131,24 @@ Requires `docker` (with `buildx`), `just`, and `sbx` (signed in) on the host.
 
 ```sh
 just builder-setup   # one-time: create the buildx builder
-just build           # build all kits locally (no push)
-just lint            # validate descriptors (offline)
-just publish         # push workload + mixins + set to ghcr.io, then sign keyless
+just build           # build the workload locally (no push)
+just lint            # validate the workload descriptor (offline)
+just publish         # push workload + set to ghcr.io, then sign keyless
 just run             # run the sandbox locally: sbx run ./workload --kit ... --clone .
 ```
 
 Publishing is also automated on `main` (→ `latest`) and tags `v*` (→ semver
 tags) via [`.github/workflows/publish-kits.yml`](.github/workflows/publish-kits.yml).
+Only the default `GITHUB_TOKEN` is required (the `github-ssh` mixin is public).
 Kits are signed keyless with Sigstore.
 
 ---
 
 ## License
 
-Apache-2.0. The `git-ssh-sign` and `github-ssh` mixins are ports of Docker's
-Apache-2.0 `docker/sbx-kits-contrib` kits (Copyright Docker, Inc.); see
-[`NOTICE`](NOTICE).
+Apache-2.0. This repo *defines* kits that target Docker Sandboxes; the
+`github-ssh` mixin is Docker's published OCI image, referenced by registry ref
+rather than copied into this repo.
 
 > **Note on the Docker Sandboxes product.** The `sbx` CLI and the
 > `docker/sandbox-templates` images are Docker's proprietary product, free for

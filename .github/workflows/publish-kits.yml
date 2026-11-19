@@ -11,7 +11,6 @@ permissions:
   id-token: write
 
 env:
-  REGISTRY: ghcr.io
   IMAGE_NS: ghcr.io/atorizva
 
 jobs:
@@ -52,20 +51,6 @@ jobs:
             --platform linux/amd64,linux/arm64 --provenance=mode=min \
             -t "${{ env.IMAGE_NS }}/opencode-workload:${{ steps.tag.outputs.value }}" \
             --push workload
-
-      - name: Build and push git-ssh-sign mixin
-        run: |
-          docker buildx build -f mixins/git-ssh-sign/git-ssh-sign.yaml \
-            --platform linux/amd64,linux/arm64 --provenance=mode=min \
-            -t "${{ env.IMAGE_NS }}/git-ssh-sign:${{ steps.tag.outputs.value }}" \
-            --push mixins/git-ssh-sign
-
-      - name: Build and push github-ssh mixin
-        run: |
-          docker buildx build -f mixins/github-ssh/github-ssh.yaml \
-            --platform linux/amd64,linux/arm64 --provenance=mode=min \
-            -t "${{ env.IMAGE_NS }}/github-ssh:${{ steps.tag.outputs.value }}" \
-            --push mixins/github-ssh
 
       - name: Build and push set
         run: |
