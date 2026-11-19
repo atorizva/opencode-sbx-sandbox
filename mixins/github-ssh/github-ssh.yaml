@@ -1,0 +1,40 @@
+# syntax=docker/sandbox-kit:3
+
+schemaVersion: "3"
+displayName: GitHub SSH Authentication
+description: |
+  Enables SSH authentication to github.com via the host's forwarded SSH agent
+  (private keys never enter the sandbox), and pre-seeds known_hosts from
+  GitHub's published SSH keys. Ported from Docker's Apache-2.0
+  `docker/sbx-kits-contrib` github-ssh kit.
+author: atorizva
+sourceUrl: https://github.com/docker/sbx-kits-contrib
+licenses: [Apache-2.0]
+kind: mixin
+version: "1.0.0"
+provides: ["github-ssh@1.0.0"]
+
+capabilities:
+  - type: com.docker.sandbox/ssh-agent@1
+    optional: true
+    config:
+      phase: [runtime]
+      unrestricted: false
+      authenticate: [git@github.com]
+
+  - type: com.docker.sandbox/lifecycle@1
+    config:
+      install:
+        - user: "0"
+          description: Seed known_hosts from GitHub's published SSH keys.
+          command:
+            - mkdir -p /home/agent/.ssh && chmod 700 /home/agent/.ssh
+            - curl -fsSL https://api.github.com/meta | jq -r '.ssh_keys[] | "github.com " + .' >> /home/agent/.ssh/known_hosts
+            - chmod 644 /home/agent/.ssh/known_hosts
+            - chown -R agent:agent /home/agent/.ssh
+
+  - type: com.docker.sandbox/network-policy@2
+    config:
+      install:
+        allow:
+          - api.github.com

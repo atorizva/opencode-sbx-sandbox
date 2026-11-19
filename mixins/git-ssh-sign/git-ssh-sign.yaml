@@ -1,0 +1,45 @@
+# syntax=docker/sandbox-kit:3
+
+schemaVersion: "3"
+displayName: Git SSH Signing
+description: |
+  Enables SSH commit/tag signing using the host's forwarded SSH agent (private
+  keys never enter the sandbox). Ported from Docker's Apache-2.0
+  `docker/sbx-kits-contrib` git-ssh-sign kit.
+author: atorizva
+sourceUrl: https://github.com/docker/sbx-kits-contrib
+licenses: [Apache-2.0]
+kind: mixin
+version: "1.0.0"
+provides: ["git-ssh-sign@1.0.0"]
+
+capabilities:
+  - type: com.docker.sandbox/ssh-agent@1
+    optional: true
+    config:
+      phase: [runtime]
+      unrestricted: false
+      sign: [git]
+
+  - type: com.docker.sandbox/lifecycle@1
+    config:
+      install:
+        - user: "0"
+          description: Configure git for SSH commit/tag signing.
+          command:
+            - git config --system gpg.format ssh
+            - git config --system gpg.ssh.defaultKeyCommand '/bin/sh /home/agent/.config/git/ssh-signing-key-command'
+            - git config --system gpg.ssh.allowedSignersFile /home/agent/.config/git/allowed_signers
+            - git config --system --unset-all user.signingKey || true
+            - mkdir -p /etc/git
+            - printf '[commit]\n\tgpgsign = true\n[tag]\n\tgpgsign = true\n' > /etc/git/signing-enabled.inc
+            - git config --system 'includeIf.hasconfig:remote.*.url:**.path' /etc/git/signing-enabled.inc
+            - mkdir -p /home/agent/.config/git
+            - chown agent:agent /home/agent/.config/git
+
+  - type: com.docker.sandbox/network-policy@2
+    config:
+      runtime:
+        allow:
+          - hosts: [api.github.com]
+            methods: [GET]

@@ -1,0 +1,27 @@
+# syntax=docker/sandbox-kit:3
+
+schemaVersion: "3"
+displayName: OpenCode Agent Sandbox
+description: |
+  Runnable agent sandbox: OpenCode on Debian, with SSH commit signing and
+  SSH-GitHub authentication mixins. Composed from the published workload and
+  mixins; publish as a single OCI reference.
+author: atorizva
+licenses: [Apache-2.0]
+kind: set
+version: "1.0.0"
+
+args:
+  registry:
+    default: ghcr.io/atorizva
+    pattern: '^[a-z0-9][a-z0-9._/:-]*$'
+    buildArg: KIT_REGISTRY
+  tag:
+    default: latest
+    pattern: '^[A-Za-z0-9._-]+$'
+    buildArg: KIT_TAG
+
+kits:
+  - ref: ${{ kit.args.registry }}/opencode-workload:${{ kit.args.tag }}
+  - ref: ${{ kit.args.registry }}/git-ssh-sign:${{ kit.args.tag }}
+  - ref: ${{ kit.args.registry }}/github-ssh:${{ kit.args.tag }}

@@ -1,0 +1,33 @@
+#!/bin/sh
+# Git SSH signing key command. Prints the forwarded key in `key::<pub>` format
+# and writes the allowed_signers file. Picks the GitHub-registered signing key
+# (for the Verified badge) when gh is authenticated, else the first forwarded key.
+set -eu
+
+keys=$(ssh-add -L)
+if [ -z "$keys" ]; then
+    echo "ssh-signing-key-command: no keys forwarded by the host SSH agent" >&2
+    echo "ssh-signing-key-command: run 'ssh-add -l' on the host to check" >&2
+    exit 1
+fi
+
+selected=$(printf '%s\n' "$keys" | head -n 1)
+
+# If gh is authenticated, prefer a key registered as a GitHub signing key.
+if login=$(gh api user --jq .login 2>/dev/null); then
+    gh api "users/$login/ssh_signing_keys" --jq '.[].key' 2>/dev/null \
+        | while IFS= read -r registered; do
+              if printf '%s\n' "$keys" | grep -Fqx "$registered"; then
+                  printf '%s\n' "$registered"
+                  break
+              fi
+          done > /tmp/github-signing-key
+
+    if [ -s /tmp/github-signing-key ]; then
+        selected=$(cat /tmp/github-signing-key)
+    fi
+    rm -f /tmp/github-signing-key
+fi
+
+printf '* %s\n' "$selected" > /home/agent/.config/git/allowed_signers
+printf 'key::%s\n' "$selected"

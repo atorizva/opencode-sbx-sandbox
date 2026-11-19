@@ -1,0 +1,83 @@
+# syntax=docker/sandbox-kit:3
+
+schemaVersion: "3"
+displayName: OpenCode Workload
+description: |
+  Debian-based workload that runs OpenCode as a headless agent, with uv (Python)
+  and just installed. Network access is deny-by-default; only OpenCode, GitHub,
+  and PyPI endpoints are allowed.
+author: atorizva
+licenses: [Apache-2.0]
+kind: workload
+version: "1.0.0"
+provides: ["opencode-workload@1.0.0"]
+
+capabilities:
+  - type: com.docker.sandbox/sbx@1
+
+  - type: com.docker.sandbox/network-policy@2
+    config:
+      runtime:
+        allow:
+          - opencode.ai
+          - models.dev
+          - pypi.org
+          - files.pythonhosted.org
+          - github.com
+          - objects.githubusercontent.com
+          - release-assets.githubusercontent.com
+          - codeload.github.com
+          - hosts: [api.github.com]
+            methods: [GET, HEAD, POST, PATCH]
+        deny:
+          - hosts: [api.github.com]
+            methods: [PUT, DELETE]
+
+  - type: com.docker.sandbox/credential@1
+    config:
+      service: opencode-go
+      phase: [runtime]
+      apiKey:
+        name: OPENCODE_API_KEY
+        proxyManaged: true
+        inject:
+          - domain: opencode.ai
+            header: Authorization
+            format: "Bearer %s"
+
+  - type: com.docker.sandbox/credential@1
+    optional: true
+    config:
+      service: github
+      phase: [runtime]
+      apiKey:
+        name: GH_TOKEN
+        proxyManaged: true
+        inject:
+          - domain: api.github.com
+            header: Authorization
+            format: "Bearer %s"
+          - domain: github.com
+            header: Authorization
+            format: "Bearer %s"
+
+  # Accept one context version through runtime policy, or skip both.
+  # Accepting both conflicts.
+  - type: com.docker.sandbox/agent-context@1
+    optional: true
+    config: &agent-context
+      filename: AGENTS.md
+      content: |
+        You are OpenCode, a coding agent running inside a Docker Sandbox.
+        - You are the `agent` user (uid 1000) in `/home/agent`.
+        - Work on the repository in `$WORKSPACE_DIR`.
+        - Prefer `uv` to manage Python per project (`.python-version`); do not
+          install system Python.
+        - `just` is available for project task lists.
+        - Network access is restricted to OpenCode, GitHub, and PyPI. Do not
+          attempt to reach other hosts.
+        - SSH signing and GitHub auth are forwarded from the host SSH agent;
+          never look for or write private key files.
+  - type: com.docker.sandbox/agent-context@2
+    optional: true
+    config: *agent-context

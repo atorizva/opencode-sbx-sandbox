@@ -1,0 +1,16 @@
+opencode-sbx-sandbox
+Copyright 2026 atorizva
+
+This product includes software developed by Docker, Inc.
+
+The mixins in this repository —
+  - mixins/git-ssh-sign
+  - mixins/github-ssh
+— are ports, to the Docker Sandboxes v3 kit format, of the corresponding
+`git-ssh-sign` and `github-ssh` kits from the `docker/sbx-kits-contrib`
+repository, which is Copyright Docker, Inc. and licensed under the
+Apache License, Version 2.0.
+
+The original Apache-2.0 license and attribution notices are preserved by
+virtue of this repository's own Apache-2.0 LICENSE, and the ported logic
+retains the original intent and behavior of those kits.
