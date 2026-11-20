@@ -36,33 +36,6 @@ just is added as a pinned release binary.
 
 ---
 
-## Why Docker Sandboxes (and not OpenShell)
-
-An earlier sibling project, `openpy-agent-sandbox`, used **NVIDIA OpenShell**
-(`openshell` CLI + Landlock `policy.yaml`). OpenShell is capable, but its
-complexity was getting in the way of development.
-
-Docker Sandboxes takes the same isolation goal and expresses it as
-**composable kits** (workload + mixins + set) with a declarative v3 descriptor
-format, and handles the hard parts — microVM isolation, the SSH-agent forward,
-credential proxying, network policy — in the `sbx` CLI rather than in
-hand-written Landlock policy.
-
-Trade-offs to be aware of:
-
-- **Product dependency.** `sbx` and the `docker/sandbox-templates` images are
-  Docker's *proprietary* product (free for commercial use, sign-in required).
-  This repo defines kits that target it; it does **not** redistribute the
-  product itself.
-- **Filesystem isolation is governance-level**, not in-kit. OpenShell put
-  read-only/read-write rules in `policy.yaml`; here they live in host/org
-  governance (mount modes, `--clone`, `sbx policy`). See
-  [`governance/filesystem.example.md`](governance/filesystem.example.md).
-- **Network policy is per-kit**, expressed as allow/deny lists in each
-  descriptor (see Security model below).
-
----
-
 ## Tooling inside the image
 
 - **OpenCode** `2.0.32` — the agent, installed via npm (`@opencode/cli`) and
