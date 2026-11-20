@@ -130,12 +130,23 @@ Filesystem access is configured at the **host/org** level (mount modes,
 Requires `docker` (with `buildx`), `just`, and `sbx` (signed in) on the host.
 
 ```sh
-just builder-setup   # one-time: create the buildx builder
+just builder-setup   # create/select the multi-arch buildx builder
+just credentials     # store the OpenCode/GitHub credentials in the sbx secret store
 just build           # build the workload locally (no push)
-just lint            # validate the workload descriptor (offline)
+just validate        # validate the workload descriptor (cache-only build)
 just publish         # push workload + set to ghcr.io, then sign keyless
 just run             # run the sandbox locally: sbx run ./workload --kit ... --clone .
 ```
+
+`just credentials` prompts for the OpenCode API key (required) and an optional
+GitHub token. Both are stored through `sbx secret`, so the real values never
+enter the sandbox filesystem. The OpenCode key is stored as the `opencode-go`
+service secret, matching the workload's `credential` capability.
+
+`just validate` is not a static linter: the `sandbox-kit:3` frontend does not
+support BuildKit's `--call=check`, so validation is a full build whose output
+is discarded (`--output type=cacheonly`). Repeat runs are fast thanks to the
+BuildKit cache.
 
 Publishing is also automated on `main` (→ `latest`) and tags `v*` (→ semver
 tags) via [`.github/workflows/publish-kits.yml`](.github/workflows/publish-kits.yml).
