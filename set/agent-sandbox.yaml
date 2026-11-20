@@ -22,4 +22,4 @@ args:
 
 kits:
   - ref: ${{ kit.args.registry }}/opencode-workload:${{ kit.args.tag }}
-  - ref: docker/sbx-kit-github-ssh:1.0.0
+  - ref: sbx/github-ssh:1.1.1

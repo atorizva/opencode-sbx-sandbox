@@ -38,6 +38,15 @@ args:
 capabilities:
   - type: com.docker.sandbox/sbx@1
 
+  # SSH agent forwarding for git over SSH. The `sbx/github-ssh` mixin only
+  # seeds known_hosts, so the workload must request the agent itself.
+  - type: com.docker.sandbox/ssh-agent@1
+    config:
+      phase: [runtime]
+      unrestricted: false
+      sign: [git]
+      authenticate: [git@github.com]
+
   - type: com.docker.sandbox/network-policy@2
     config:
       runtime:

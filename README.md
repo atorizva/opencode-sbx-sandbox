@@ -20,7 +20,7 @@ Docker Sandboxes v3 kits are composed from three kinds. This repo ships a
 | Kit | Kind | Role |
 |-----|------|------|
 | `workload/opencode-workload` | workload | Root filesystem: shell-docker (Ubuntu) + OpenCode (npm) + uv + just, non-root `agent` (uid 1000), `ENTRYPOINT ["opencode"]`. |
-| `docker/sbx-kit-github-ssh` | mixin | SSH **authentication** to `github.com` (Docker's kit, public). |
+| `sbx/github-ssh` | mixin | Seeds `known_hosts` with GitHub's host keys (Docker's kit, public). |
 | `set/agent-sandbox` | set | Composes the workload + the mixin into one runnable artifact. |
 
 ```
@@ -95,9 +95,9 @@ real value is injected into matching outbound requests by the sandbox proxy.
 
 ### SSH (no keys in the sandbox)
 
-SSH operations use the **host's forwarded SSH agent** via `ssh-agent@1`
-(provided by Docker's published `github-ssh` mixin) for
-`authenticate: [git@github.com]` — git push/pull over SSH.
+SSH operations use the **host's forwarded SSH agent**. The workload requests
+`ssh-agent@1` for `authenticate: [git@github.com]`, and the `github-ssh` mixin
+only seeds `known_hosts` so host keys are verified non-interactively.
 
 Private keys stay on the host; the agent never holds the key material itself.
 

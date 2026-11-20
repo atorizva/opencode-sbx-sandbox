@@ -10,7 +10,7 @@ builder := "default"
 
 workload_ref := registry + "/opencode-workload:" + tag
 set_ref := registry + "/opencode-sbx-sandbox:" + tag
-githubssh_ref := "docker/sbx-kit-github-ssh:1.0.0"
+githubssh_ref := "sbx/github-ssh:1.1.1"
 
 # One-time: create and select a docker-container builder (multi-arch capable).
 builder-setup:
