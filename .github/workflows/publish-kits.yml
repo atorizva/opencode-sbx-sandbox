@@ -32,7 +32,9 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           release_branches: ^main$
-          default_bump: patch
+          # Only commits that select a bump (fix/feat/breaking) create a release.
+          # chore/docs/ci and other non-release commits publish nothing.
+          default_bump: "false"
           tag_prefix: v
           # Only calculate the version here. The tag is created at the end, so a
           # failed build can be retried without orphaning a tag.

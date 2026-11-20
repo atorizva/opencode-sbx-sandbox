@@ -152,13 +152,15 @@ Publishing and releases are automated via
 [`.github/workflows/publish-kits.yml`](.github/workflows/publish-kits.yml).
 Every push to `main`:
 
-- computes the next version from the commits since the previous tag (`feat:`
-  bumps minor, `!:` or `BREAKING CHANGE` bumps major, anything else bumps patch)
-  with `mathieudutour/github-tag-action`;
-- publishes `:latest` and the versioned `:vX.Y.Z` tag for both kits;
-- signs the set keyless; and
-- creates the tag and GitHub **Release** from the generated changelog with
-  `ncipollo/release-action`.
+- computes the next version from the commits since the previous tag
+  (`fix:`/`perf:` bump patch, `feat:` bumps minor, `!:` or `BREAKING CHANGE`
+  bumps major) with `mathieudutour/github-tag-action`;
+- when that analysis produces a release, publishes `:latest` and the versioned
+  `:vX.Y.Z` tag for both kits, signs the set keyless, and creates the tag and
+  GitHub **Release** from the generated changelog with
+  `ncipollo/release-action`;
+- when it does not (for example `chore:`, `docs:`, or `ci:`), publishes nothing
+  and creates no release.
 
 Releases are only created by this workflow. There is no `just` recipe to tag or
 release manually, and pushing a tag by hand does not publish anything. `just
