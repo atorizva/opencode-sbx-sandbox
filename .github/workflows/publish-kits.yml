@@ -26,51 +26,24 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Compute next version
-        id: version
-        run: |
-          set -euo pipefail
-
-          git fetch --tags --force
-
-          latest=$(git tag --merged HEAD -l 'v*' --sort=-v:refname \
-            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
-            | head -n1 || true)
-
-          if [[ -z "$latest" ]]; then
-            next="1.0.0"
-          elif [[ "$(git rev-list -n1 "$latest")" == "$(git rev-parse HEAD)" ]]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "HEAD is already released as $latest; nothing to do."
-            exit 0
-          else
-            range="$latest..HEAD"
-            base="${latest#v}"
-            IFS=. read -r major minor patch <<< "$base"
-            log=$(git log "$range" --format='%B')
-
-            if grep -qE 'BREAKING[ -]CHANGE|^[a-zA-Z]+(\([^)]*\))?!:' <<< "$log"; then
-              major=$((major + 1)); minor=0; patch=0
-            elif grep -qE '^feat(\([^)]*\))?:' <<< "$log"; then
-              minor=$((minor + 1)); patch=0
-            else
-              patch=$((patch + 1))
-            fi
-
-            next="$major.$minor.$patch"
-          fi
-
-          echo "skip=false" >> "$GITHUB_OUTPUT"
-          echo "version=$next" >> "$GITHUB_OUTPUT"
-          echo "tag=v$next" >> "$GITHUB_OUTPUT"
-          echo "Next release: v$next"
+      - name: Bump version and push tag
+        id: tag
+        uses: mathieudutour/github-tag-action@af99e60ce8132224b8e6ebab5023449fe256ed46 # v7
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          release_branches: ^main$
+          default_bump: patch
+          tag_prefix: v
+          # Only calculate the version here. The tag is created at the end, so a
+          # failed build can be retried without orphaning a tag.
+          dry_run: true
 
       - name: Set up Docker Buildx
-        if: steps.version.outputs.skip != 'true'
+        if: steps.tag.outputs.new_tag != ''
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
-        if: steps.version.outputs.skip != 'true'
+        if: steps.tag.outputs.new_tag != ''
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -78,45 +51,48 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install sbx
-        if: steps.version.outputs.skip != 'true'
+        if: steps.tag.outputs.new_tag != ''
         run: |
           curl -fsSL https://get.docker.com | sudo REPO_ONLY=1 sh
           sudo apt-get update
           sudo apt-get install -y docker-sbx
 
       - name: Build and push workload
-        if: steps.version.outputs.skip != 'true'
+        if: steps.tag.outputs.new_tag != ''
         run: |
           docker buildx build -f workload/opencode-workload.yaml \
             --platform linux/amd64,linux/arm64 --provenance=mode=min \
             -t "${{ env.IMAGE_NS }}/opencode-workload:latest" \
-            -t "${{ env.IMAGE_NS }}/opencode-workload:${{ steps.version.outputs.tag }}" \
+            -t "${{ env.IMAGE_NS }}/opencode-workload:${{ steps.tag.outputs.new_tag }}" \
             --push workload
 
       - name: Build and push set
-        if: steps.version.outputs.skip != 'true'
+        if: steps.tag.outputs.new_tag != ''
         run: |
           docker buildx build -f set/agent-sandbox.yaml \
             --platform linux/amd64,linux/arm64 --provenance=mode=min \
             --build-arg KIT_REGISTRY="${{ env.IMAGE_NS }}" \
-            --build-arg KIT_TAG="${{ steps.version.outputs.tag }}" \
+            --build-arg KIT_TAG="${{ steps.tag.outputs.new_tag }}" \
             -t "${{ env.IMAGE_NS }}/opencode-sbx-sandbox:latest" \
-            -t "${{ env.IMAGE_NS }}/opencode-sbx-sandbox:${{ steps.version.outputs.tag }}" \
+            -t "${{ env.IMAGE_NS }}/opencode-sbx-sandbox:${{ steps.tag.outputs.new_tag }}" \
             --push set
 
       - name: Sign set keyless
-        if: steps.version.outputs.skip != 'true'
+        if: steps.tag.outputs.new_tag != ''
         run: |
-          sbx kit sign "${{ env.IMAGE_NS }}/opencode-sbx-sandbox:${{ steps.version.outputs.tag }}"
+          sbx kit sign "${{ env.IMAGE_NS }}/opencode-sbx-sandbox:${{ steps.tag.outputs.new_tag }}"
           sbx kit sign "${{ env.IMAGE_NS }}/opencode-sbx-sandbox:latest"
 
       - name: Create GitHub release
-        if: steps.version.outputs.skip != 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release create "${{ steps.version.outputs.tag }}" \
-            --target "$GITHUB_SHA" \
-            --title "${{ steps.version.outputs.tag }}" \
-            --notes "Kits published: \`${{ env.IMAGE_NS }}/opencode-workload:${{ steps.version.outputs.tag }}\` and \`${{ env.IMAGE_NS }}/opencode-sbx-sandbox:${{ steps.version.outputs.tag }}\`." \
-            --generate-notes
+        if: steps.tag.outputs.new_tag != ''
+        uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1.21.0
+        with:
+          tag: ${{ steps.tag.outputs.new_tag }}
+          commit: ${{ github.sha }}
+          name: ${{ steps.tag.outputs.new_tag }}
+          body: |
+            Kits published: `${{ env.IMAGE_NS }}/opencode-workload:${{ steps.tag.outputs.new_tag }}` and `${{ env.IMAGE_NS }}/opencode-sbx-sandbox:${{ steps.tag.outputs.new_tag }}`.
+
+            ${{ steps.tag.outputs.changelog }}
+          prerelease: ${{ steps.tag.outputs.prerelease == 'true' }}
+          skipIfReleaseExists: true
