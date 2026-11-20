@@ -42,6 +42,32 @@ publish:
 sign:
     sbx kit sign {{set_ref}}
 
+# Tag, push, and publish a release (e.g. `just release 1.0.0`).
+release version:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    version="{{version}}"
+    if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "error: version must be MAJOR.MINOR.PATCH (got '$version')" >&2
+        exit 1
+    fi
+    if [[ "$(git rev-parse --abbrev-ref HEAD)" != "main" ]]; then
+        echo 'error: release tags must be created from main' >&2
+        exit 1
+    fi
+    if [[ -n "$(git status --porcelain)" ]]; then
+        echo 'error: working tree is not clean' >&2
+        exit 1
+    fi
+    if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+        echo "error: tag v$version already exists" >&2
+        exit 1
+    fi
+
+    git tag -a "v$version" -m "v$version"
+    git push origin "v$version"
+
 # Store the OpenCode (required) and GitHub (optional) credentials in sbx.
 credentials:
     #!/usr/bin/env bash

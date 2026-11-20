@@ -6,7 +6,7 @@ on:
     tags: ["v*"]
 
 permissions:
-  contents: read
+  contents: write
   packages: write
   id-token: write
 
@@ -64,3 +64,14 @@ jobs:
       - name: Sign set keyless
         run: |
           sbx kit sign "${{ env.IMAGE_NS }}/opencode-sbx-sandbox:${{ steps.tag.outputs.value }}"
+
+      - name: Create GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --verify-tag \
+            --notes "Kits published: \`${{ env.IMAGE_NS }}/opencode-workload:${{ steps.tag.outputs.value }}\` and \`${{ env.IMAGE_NS }}/opencode-sbx-sandbox:${{ steps.tag.outputs.value }}\`." \
+            --generate-notes

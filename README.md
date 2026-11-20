@@ -135,6 +135,7 @@ just credentials     # store the OpenCode/GitHub credentials in the sbx secret s
 just build           # build the workload locally (no push)
 just validate        # validate the workload descriptor (cache-only build)
 just publish         # push workload + set to ghcr.io, then sign keyless
+just release 1.0.0   # tag v1.0.0 and push it; CI publishes and creates the release
 just run             # run the sandbox locally: sbx run ./workload --kit ... --clone .
 ```
 
@@ -148,10 +149,17 @@ support BuildKit's `--call=check`, so validation is a full build whose output
 is discarded (`--output type=cacheonly`). Repeat runs are fast thanks to the
 BuildKit cache.
 
-Publishing is also automated on `main` (→ `latest`) and tags `v*` (→ semver
-tags) via [`.github/workflows/publish-kits.yml`](.github/workflows/publish-kits.yml).
-Only the default `GITHUB_TOKEN` is required (the `github-ssh` mixin is public).
-Kits are signed keyless with Sigstore.
+Publishing is automated via
+[`.github/workflows/publish-kits.yml`](.github/workflows/publish-kits.yml):
+
+- every push to `main` publishes `:latest`;
+- pushing a `v*` tag publishes that tag and creates a GitHub **Release** with
+  generated notes and links to both kit images.
+
+`just release X.Y.Z` creates and pushes the annotated tag from a clean `main`.
+Bump `version:` in `workload/opencode-workload.yaml` and `set/agent-sandbox.yaml`
+first when the kit contract changes. Only the default `GITHUB_TOKEN` is required
+(the `github-ssh` mixin is public). Kits are signed keyless with Sigstore.
 
 ---
 
